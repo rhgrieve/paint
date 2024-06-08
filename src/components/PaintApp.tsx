@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { constructGrid } from '../helpers';
+
+// components
 import './PaintApp.css';
 import {
   Box,
@@ -75,9 +78,6 @@ const getHotkey = (e: KeyboardEvent): Actions => {
 };
 
 export default function PaintApp() {
-  // const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
-  // const [historyPos, setHistoryPos] = useState(0);
-  // const [history, setHistory] = useState<ImageData[]>([]);
   const [prevTarget, setPrevTarget] = useState<Target>({ x: 0, y: 0 });
   const [target, setTarget] = useState<Target>({ x: 0, y: 0 });
   const [isMouseDown, setIsMouseDown] = useBoolean();
@@ -92,27 +92,25 @@ export default function PaintApp() {
     b: 0,
     a: 1,
   });
+  const [grid, setGrid] = useState<string[][]>([]);
 
   // References
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const navbarRef = useRef<HTMLDivElement>(null);
-  // const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  // const historyRef = useRef<ImageData[]>([]);
-  // const historyPosRef = useRef(-1);
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = 'white';
+        // ctx.fillStyle = 'white';
         ctx.strokeStyle = 'black';
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         // storeHistory();
       }
       setBoundingRect(canvasRef.current.getBoundingClientRect());
-
+      setGrid(constructGrid(canvasRef.current.width, canvasRef.current.height))
       window.addEventListener('keydown', handleKeyDown);
     }
 
@@ -121,16 +119,18 @@ export default function PaintApp() {
     };
   }, [canvasRef.current]);
 
-  // useEffect(() => {
-  //   console.log('useEffect', historyPos);
-  //   if (ctx && historyPos > 1) {
-  //     ctx.putImageData(history[historyPos - 1], 0, 0);
-  //   }
-  // }, [historyPos]);
-
-  // useEffect(() => {
-  //   setHistoryPos((historyPos) => historyPos + 1);
-  // }, [history]);
+  useEffect(() => {
+    const ctx = canvasRef.current?.getContext('2d');
+    console.log(grid);
+    if (ctx) {
+      grid.forEach((row, y) => {
+        row.forEach((color, x) => {
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, 1, 1);
+        })
+      })
+    }
+  }, [grid])
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -203,55 +203,21 @@ export default function PaintApp() {
 
   const trackPosition: React.MouseEventHandler = (e) => {
     if (boundingRect) {
-      setPrevTarget(target);
-
-      setTarget({
-        x: e.clientX - boundingRect.left,
-        y: e.clientY - boundingRect.top,
-      });
-    }
-
-    if (isMouseDown) {
-      drawPixel();
+      const x = Math.floor(e.clientX - boundingRect.left) + 1;
+      const y = Math.floor(e.clientY - boundingRect.top) + 1;
+      // console.log(x, y);
+      const newGrid = [...grid];
+      newGrid[y][x] = "#fff";
+      setGrid(newGrid);
     }
   };
 
   const handleMouseDown: React.MouseEventHandler = (_e) => {
-    setIsMouseDown.toggle();
+    setIsMouseDown.on();
   };
 
-  // const undo = () => {
-  //   if (ctx) {
-  //     console.log(historyPos);
-  //     // setHistoryPos((historyPos) => historyPos - 1);
-  //     ctx.putImageData(history[historyPos - 1], 0, 0);
-  //   }
-  // };
-
-  // const redo = () => {
-  //   if (ctx && historyPos < history.length - 1) {
-  //     // setHistoryPos((historyPos) => historyPos + 1);
-  //     ctx.putImageData(history[historyPos - 1], 0, 0);
-  //   }
-  // };
-
-  // const storeHistory = () => {
-  //   console.log('storing history');
-  //   if (canvasRef.current && ctx) {
-  //     setHistory([
-  //       ...history,
-  //       ctx.getImageData(
-  //         0,
-  //         0,
-  //         canvasRef.current.width,
-  //         canvasRef.current.height
-  //       ),
-  //     ]);
-  //   }
-  // };
-
   const handleMouseUp: React.MouseEventHandler = (_e) => {
-    setIsMouseDown.toggle();
+    setIsMouseDown.off();
     // storeHistory();
   };
 
@@ -295,6 +261,7 @@ export default function PaintApp() {
                         const localBrushSize = value;
                         return (
                           <IconButton
+                            key={`${key}`}
                             aria-label={`${key} brush`}
                             onClick={() =>
                               setBrushSize(brushSizes[key as BrushSize])
