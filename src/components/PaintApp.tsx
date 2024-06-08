@@ -295,6 +295,7 @@ export default function PaintApp() {
                         const localBrushSize = value;
                         return (
                           <IconButton
+                            key={`${key}-brush`}
                             aria-label={`${key} brush`}
                             onClick={() =>
                               setBrushSize(brushSizes[key as BrushSize])
