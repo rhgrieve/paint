@@ -45,7 +45,7 @@ export const ColorPicker = forwardRef<HTMLDivElement, IColorPickerProps>(
           }}
         />
         {props.showColorPicker && (
-          <Box style={{ position: 'absolute', marginTop: '13px' }}>
+          <Box style={{ position: 'absolute', marginTop: '13px', zIndex: 9999 }}>
             <TwitterPicker
               color={props.color}
               onChangeComplete={handleChangeComplete}

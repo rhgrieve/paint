@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { createRef, useEffect, useRef, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+
 import './PaintApp.css';
 import {
   Box,
+  Button,
   ButtonGroup,
   Circle,
   Flex,
@@ -15,8 +18,14 @@ import {
   PopoverTrigger,
   useBoolean,
 } from '@chakra-ui/react';
-import { ArrowBackIcon, ArrowForwardIcon, RepeatIcon } from '@chakra-ui/icons';
+import { AddIcon, ArrowBackIcon, ArrowForwardIcon, RepeatIcon } from '@chakra-ui/icons';
 import { ColorPicker, RGBAColor } from './ColorPicker';
+import { Canvas } from './Canvas';
+
+type LayerData = {
+  id: string
+  position: number
+}
 
 type Target = {
   x: number;
@@ -92,26 +101,27 @@ export default function PaintApp() {
     b: 0,
     a: 1,
   });
+  const [layers, setLayers] = useState<LayerData[]>([{ id: uuidv4(), position: 0 }])
+  const [currentLayer, setCurrentLayer] = useState(0);
 
   // References
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const layerRefs = layers.map(layer => ({ id: layer.id, ref: createRef<HTMLCanvasElement>() }))
   const navbarRef = useRef<HTMLDivElement>(null);
-  // const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  // const historyRef = useRef<ImageData[]>([]);
-  // const historyPosRef = useRef(-1);
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
+    if (canvasContainerRef.current) {
+      const ctx = layerRefs[currentLayer].ref.current?.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0)';
         ctx.strokeStyle = 'black';
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         // storeHistory();
       }
-      setBoundingRect(canvasRef.current.getBoundingClientRect());
+      setBoundingRect(canvasContainerRef.current.getBoundingClientRect());
 
       window.addEventListener('keydown', handleKeyDown);
     }
@@ -119,28 +129,17 @@ export default function PaintApp() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [canvasRef.current]);
-
-  // useEffect(() => {
-  //   console.log('useEffect', historyPos);
-  //   if (ctx && historyPos > 1) {
-  //     ctx.putImageData(history[historyPos - 1], 0, 0);
-  //   }
-  // }, [historyPos]);
-
-  // useEffect(() => {
-  //   setHistoryPos((historyPos) => historyPos + 1);
-  // }, [history]);
+  }, [canvasContainerRef.current, currentLayer]);
 
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d');
+    const ctx = layerRefs[currentLayer].ref.current?.getContext('2d');
     if (ctx) {
       ctx.lineWidth = brushSize.canvasSize;
     }
   }, [brushSize]);
 
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d');
+    const ctx = layerRefs[currentLayer].ref.current?.getContext('2d');
     if (ctx) {
       ctx.strokeStyle = `rgba(${color.r},${color.g},${color.b},${color.a})`;
     }
@@ -179,20 +178,20 @@ export default function PaintApp() {
   };
 
   const clearScreen = () => {
-    const ctx = canvasRef.current?.getContext('2d');
+    const ctx = layerRefs[currentLayer].ref.current?.getContext('2d');
     if (ctx) {
-      ctx.fillRect(
+      ctx.clearRect(
         0,
         0,
-        canvasRef.current?.width || 0,
-        canvasRef.current?.height || 0
+        layerRefs[currentLayer].ref.current?.width || 0,
+        layerRefs[currentLayer].ref.current?.height || 0
       );
       // storeHistory();
     }
   };
 
   const drawPixel = () => {
-    const ctx = canvasRef.current?.getContext('2d');
+    const ctx = layerRefs[currentLayer].ref.current?.getContext('2d');
     if (ctx) {
       ctx.beginPath();
       ctx.moveTo(prevTarget.x, prevTarget.y);
@@ -220,44 +219,18 @@ export default function PaintApp() {
     setIsMouseDown.toggle();
   };
 
-  // const undo = () => {
-  //   if (ctx) {
-  //     console.log(historyPos);
-  //     // setHistoryPos((historyPos) => historyPos - 1);
-  //     ctx.putImageData(history[historyPos - 1], 0, 0);
-  //   }
-  // };
-
-  // const redo = () => {
-  //   if (ctx && historyPos < history.length - 1) {
-  //     // setHistoryPos((historyPos) => historyPos + 1);
-  //     ctx.putImageData(history[historyPos - 1], 0, 0);
-  //   }
-  // };
-
-  // const storeHistory = () => {
-  //   console.log('storing history');
-  //   if (canvasRef.current && ctx) {
-  //     setHistory([
-  //       ...history,
-  //       ctx.getImageData(
-  //         0,
-  //         0,
-  //         canvasRef.current.width,
-  //         canvasRef.current.height
-  //       ),
-  //     ]);
-  //   }
-  // };
-
   const handleMouseUp: React.MouseEventHandler = (_e) => {
     setIsMouseDown.toggle();
     // storeHistory();
   };
 
+  const createLayer = () => {
+    setLayers([...layers, { id: uuidv4(), position: layers.length }])
+  }
+
   return (
     <div>
-      <Flex direction="column">
+      <Flex direction="column" height={"100vh"}>
         <Box
           ref={navbarRef}
           bg="blue.300"
@@ -270,6 +243,27 @@ export default function PaintApp() {
           <Flex justify="space-between">
             <Box>h.paint</Box>
             <HStack>
+            <Popover>
+                <PopoverTrigger>
+                  <Button
+                    style={{
+                      border: '2px solid white',
+                    }}
+                  >{currentLayer + 1}</Button>
+                </PopoverTrigger>
+                <PopoverContent>
+                  <PopoverArrow />
+                  <PopoverCloseButton />
+                  <PopoverBody>
+                    <HStack>
+                      {layers && layers.map(layer => {
+                        return <Button onClick={() => setCurrentLayer(layer.position)} key={layer.id} isActive={currentLayer === layer.position}>{layer.position + 1}</Button>;
+                      })}
+                      <IconButton onClick={() => createLayer()} icon={<AddIcon />} aria-label='add layer' />
+                    </HStack>
+                  </PopoverBody>
+                </PopoverContent>
+              </Popover>
               <Popover>
                 <PopoverTrigger>
                   <IconButton
@@ -354,17 +348,9 @@ export default function PaintApp() {
             </HStack>
           </Flex>
         </Box>
-        <canvas
-          ref={canvasRef}
-          onMouseMove={trackPosition}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          width={`${window.innerWidth}`}
-          height={`${
-            window.innerHeight - (navbarRef.current?.offsetHeight || 0)
-          }`}
-          style={{ background: 'white' }}
-        ></canvas>
+        <Box ref={canvasContainerRef} flex={1} onMouseMove={trackPosition} onMouseDown={handleMouseDown} onMouseUp={handleMouseUp}>
+          {layers && layers.map((layer, idx) => <Canvas ref={layerRefs[idx].ref} key={layer.id} navbarRef={navbarRef} zIndex={layer.position} />)}
+        </Box>
       </Flex>
     </div>
   );
